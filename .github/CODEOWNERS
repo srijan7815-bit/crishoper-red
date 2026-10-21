@@ -1,0 +1,5 @@
+# Every change to the agent's behaviour needs an owner review.
+/system_prompt.md                @srijan7815-bit
+/android/app/src/main/java/red/crishoper/agent/agent/   @srijan7815-bit
+/android/app/src/main/java/red/crishoper/agent/net/     @srijan7815-bit
+/.github/workflows/             @srijan7815-bit

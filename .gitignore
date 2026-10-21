@@ -1,0 +1,26 @@
+# Gradle / Android
+.gradle/
+build/
+*/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+.kotlin/
+
+# Generated at build time from /system_prompt.md — not committed twice
+android/app/src/main/assets/system_prompt.md
+
+# Secrets
+keystore.properties
+*.jks
+*.keystore
+secrets.properties
+.env*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp

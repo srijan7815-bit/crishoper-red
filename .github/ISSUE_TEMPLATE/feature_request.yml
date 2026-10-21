@@ -1,0 +1,51 @@
+name: Feature request
+description: Suggest a capability or a change in behaviour
+title: "[feat] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: this project is deliberately narrow — native only, no
+        telemetry, BYOK, nothing that phones home. Requests that need a backend
+        or an SDK will usually be declined; requests that make the existing loop
+        better usually land.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the app makes hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to see
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "do nothing" — sometimes that is the right answer.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Agent engine / tools
+        - Chat screen
+        - Settings / vault
+        - Terminal / sandbox
+        - Design system / theming
+        - Build / CI / release
+        - Documentation
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints acknowledged
+      options:
+        - label: This can be built without adding a service that the user must trust with their data.
+          required: true

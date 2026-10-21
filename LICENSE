@@ -1,0 +1,46 @@
+# Crishoper RED — Proprietary License
+
+Copyright © 2026 srijan7815-bit. All rights reserved.
+
+This repository is published for **inspection, audit and evaluation**. It is not
+open source, and no license is granted except as written below.
+
+## Permitted
+
+1. **Read and audit.** You may view, clone and retain copies of this source for
+   personal review, security research, or academic study.
+2. **Build for personal use.** You may compile the source and install the result
+   on devices you own, for non-commercial personal use.
+3. **Quote briefly.** You may quote short excerpts in reviews, issue reports or
+   academic work, with attribution and a link to this repository.
+
+## Not permitted
+
+1. Redistribution of the source or of compiled binaries, in whole or in part,
+   including on app stores, mirrors, or package registries.
+2. Commercial use of any kind, including paid distribution, paid support, or
+   inclusion in a commercial product or service.
+3. Creation of derivative works offered to third parties, including forks
+   published under another name.
+4. Removal or alteration of copyright, attribution, or license notices.
+
+## No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN
+AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Third-party components
+
+This project depends on open-source libraries — AndroidX/Compose (Apache-2.0),
+OkHttp (Apache-2.0), Kotlin and kotlinx (Apache-2.0), and others listed in
+`android/gradle/libs.versions.toml`. Those components remain under their own
+licenses; nothing in this file narrows the rights they grant you.
+
+## Commercial licensing
+
+For a commercial license, contact the maintainer through the repository issues
+or the address listed on the GitHub profile.
