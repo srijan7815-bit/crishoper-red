@@ -1,3 +1,15 @@
+<p align="center">
+  <img src="android/app/src/main/res/drawable-nodpi/logo.png" width="120" alt="Crishoper RED">
+</p>
+
+<p align="center">
+  <a href="https://github.com/srijan7815-bit/crishoper-red/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/srijan7815-bit/crishoper-red?color=FF3441&label=apk"></a>
+  <img alt="minSdk" src="https://img.shields.io/badge/minSdk-26-101013">
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-1.9.24-101013">
+  <img alt="Compose" src="https://img.shields.io/badge/Compose-BOM%202024.06-101013">
+  <img alt="No telemetry" src="https://img.shields.io/badge/telemetry-none-40D9A0">
+</p>
+
 # Crishoper RED
 
 **A native Android agent console. Your keys, your device, your data.**
