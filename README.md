@@ -33,7 +33,7 @@ and that keeps every byte of state on the phone.
 6. [Build from source](#6-build-from-source)
 7. [Repository layout](#7-repository-layout)
 8. [Security model](#8-security-model)
-9. [Continuous integration](#9-continuous-integration)
+9. [Building and releasing](#9-building-and-releasing)
 10. [Roadmap](#10-roadmap)
 11. [License](#11-license)
 
@@ -117,7 +117,7 @@ onboarding lets you look around the UI before any key exists.
 ## 5. Install
 
 Download the latest signed APK from
-[Releases](../../releases), then:
+[Releases](https://github.com/srijan7815-bit/crishoper-red/releases), then:
 
 ```bash
 adb install -r crishoper-red-2.0.0.apk
@@ -186,10 +186,11 @@ SHA-256 so a build can be audited against an expected prompt.
 │   │       │   └── util/Text.kt           formatting helpers
 │   │       ├── res/                       themes, launcher icons, splash
 │   │       └── AndroidManifest.xml
-│   └── {build.gradle,settings.gradle,gradle.properties}
+│   └── {build.gradle.kts, settings.gradle.kts, gradle.properties}
 ├── system_prompt.md             the operator prompt (asset source)
-├── docs/                        architecture, privacy, ops notes
-└── .github/workflows/           android.yml · checks.yml · release.yml
+├── docs/                        architecture · privacy · security model · Heretic
+├── ci/workflows/                lint · checks · signed release (inactive — ci/README.md)
+└── .github/                     CODEOWNERS · Dependabot · issue & PR templates
 ```
 
 ## 8. Security model
@@ -207,16 +208,42 @@ SHA-256 so a build can be audited against an expected prompt.
 Full detail, including the threat model and what is *not* protected, is in
 [docs/SECURITY-MODEL.md](docs/SECURITY-MODEL.md) and [SECURITY.md](SECURITY.md).
 
-## 9. Continuous integration
+## 9. Building and releasing
 
-| Workflow | Trigger | Result |
-|---|---|---|
-| `android.yml` | push to `main`, PR, manual | Lint, unit tests, assemble, `apksigner` + `aapt2` verification, APK artifact |
-| `checks.yml` | every push/PR | prompt-size guard, committed-secret scan, no-web-payload guard, Kotlin compile |
-| `release.yml` | tag `v*` | signed release, checksums, GitHub Release |
+The APK in [Releases](https://github.com/srijan7815-bit/crishoper-red/releases) is built from the tagged commit and signed
+with the project key — its certificate fingerprint is published with each release
+and can be re-checked locally:
 
-Builds never need a maintainer's machine: the APK in Releases is the artifact of
-`release.yml`, and the certificate fingerprint is printed in the job log.
+```bash
+apksigner verify --print-certs crishoper-red-2.0.0.apk
+sha256sum -c checksums.txt
+```
+
+Workflow definitions for a fully automated pipeline — lint, unit tests, a compile
+guard, signature verification, and tag-driven signed releases — are versioned in
+[`ci/workflows/`](ci/workflows/) with activation instructions in
+[`ci/README.md`](ci/README.md). They are deliberately **inactive**: GitHub only
+accepts pushes that create files under `.github/workflows/` from a token carrying
+the `workflow` scope, and this repository was published with a narrower one. The
+definitions are checked in so the pipeline is reviewable and one `cp` away from
+running; nothing in the build depends on them.
+
+Until they are activated, the reproducible path is the local one:
+
+```bash
+cd android
+./gradlew :app:assembleDebug                    # ~20 s after the first run
+./gradlew :app:assembleRelease                  # signed, if keystore.properties exists
+./gradlew :app:assembleRelease -Pred.release.minify=false   # low-RAM machines
+```
+
+### Build notes for constrained hardware
+
+R8 needs roughly 3 GB of heap on this dependency graph. On a 2 GB container the
+`minifyReleaseWithR8` step is where the daemon dies, while `assembleDebug` (which
+skips R8) completes comfortably. `-Pred.release.minify=false` produces a larger
+but functionally identical release APK; use it on CI runners *only* if you also
+cannot allocate the heap, since shrinking is worth having in shipped builds.
 
 ## 10. Roadmap
 
