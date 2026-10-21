@@ -4,6 +4,26 @@ All notable changes to this project are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] — 2026-10-22
+
+### Changed
+- **Operator prompt revised.** `system_prompt.md` was rewritten by the operator
+  (3,972 bytes, SHA-256 prefix `9f4d814a`) and is embedded into the APK at build
+  time by the `Sync` task. Settings › About shows the full hash, so any build can
+  be checked against the prompt it claims to carry.
+- `versionCode` 3 · `versionName` 3.0.0. Same signing key as 2.0.0 and 1.0.0, so
+  it installs over either.
+
+### Unchanged
+- No source changes to the agent engine, tools, vault, or UI in this release. The
+  only behavioural difference is the prompt the model receives.
+
+### Note on the build
+- Shipped without R8 shrinking (`-Pred.release.minify=false`), as in 2.0.0, because
+  the publishing machine could not allocate the ~3 GB R8 needs. The artifact is
+  signed and verified; it is simply larger than a minified build. `ci/workflows/`
+  builds the minified variant on a normal runner.
+
 ## [Unreleased]
 
 ### Planned

@@ -3,7 +3,7 @@
 **Short version: there is no Crishoper RED server. Nobody at this project can see
 your prompts, your files, your memory, or your keys.**
 
-Last updated: 2026-10-21 · Applies to app version 2.0.0 (`red.crishoper.agent`)
+Last updated: 2026-10-22 · Applies to app version 3.0.0 (`red.crishoper.agent`)
 
 ---
 

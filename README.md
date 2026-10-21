@@ -132,7 +132,7 @@ Download the latest signed APK from
 [Releases](https://github.com/srijan7815-bit/crishoper-red/releases), then:
 
 ```bash
-adb install -r crishoper-red-2.0.0.apk
+adb install -r crishoper-red-3.0.0.apk
 ```
 
 Requirements: Android 8.0 (API 26) or newer, arm64 or x86_64.
@@ -141,7 +141,7 @@ Requirements: Android 8.0 (API 26) or newer, arm64 or x86_64.
 > from an untrusted mirror:
 >
 > ```bash
-> apksigner verify --print-certs crishoper-red-2.0.0.apk
+> apksigner verify --print-certs crishoper-red-3.0.0.apk
 > ```
 
 ## 6. Build from source
@@ -227,7 +227,7 @@ with the project key — its certificate fingerprint is published with each rele
 and can be re-checked locally:
 
 ```bash
-apksigner verify --print-certs crishoper-red-2.0.0.apk
+apksigner verify --print-certs crishoper-red-3.0.0.apk
 sha256sum -c checksums.txt
 ```
 

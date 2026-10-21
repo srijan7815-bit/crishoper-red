@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---|---|
-| 2.x | ✅ |
+| 3.x | ✅ |
+| 2.x | ✅ — security fixes only |
 | 1.x (legacy WebView build) | ❌ — superseded, please upgrade |
 
 ## Reporting a vulnerability
