@@ -1,13 +1,31 @@
 package red.crishoper.agent.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,26 +34,20 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,7 +55,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,322 +65,485 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import red.crishoper.agent.data.Citation
+import red.crishoper.agent.data.Conversation
 import red.crishoper.agent.data.Message
-import red.crishoper.agent.ui.theme.LocalRedColors
-import red.crishoper.agent.ui.theme.Red
+import red.crishoper.agent.data.Step
+import red.crishoper.agent.ui.theme.LocalHaptics
+import red.crishoper.agent.ui.theme.LocalMetrics
+import red.crishoper.agent.ui.theme.LocalMono
+import red.crishoper.agent.ui.theme.MonoColors
+import red.crishoper.agent.ui.theme.MonoType
 import red.crishoper.agent.util.Inline
 import red.crishoper.agent.util.MdBlock
+import red.crishoper.agent.util.fmtDuration
 import red.crishoper.agent.util.fmtTime
 import red.crishoper.agent.util.parseInline
 import red.crishoper.agent.util.parseMarkdown
+import java.util.Locale
 
-/* ─────────────────────────────────────────────────────────────
-   Chat surface: message list + composer.
-   The list is a LazyColumn; nothing is re-rendered wholesale while
-   tokens stream in — only the trailing message recomposes.
-   ───────────────────────────────────────────────────────────── */
-
+/**
+ * One operation. The transcript is asymmetric on purpose: what you said is an
+ * inverted slab, what the agent said is bare type on the canvas, and every tool
+ * call it made is a spine of dots you can open and read.
+ */
 @Composable
 fun ChatScreen(
-    title: String,
-    subtitle: String,
-    messages: List<Message>,
+    conversation: Conversation?,
     streaming: Boolean,
     model: String,
-    onMenu: () -> Unit,
-    onNewChat: () -> Unit,
-    onTerminal: () -> Unit,
-    onSearch: () -> Unit,
-    onMore: () -> Unit,
+    onBack: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
-    onOpenUrl: (String) -> Unit,
     onRetry: (String) -> Unit,
-    onUsePrompt: (String) -> Unit,
+    onOpenUrl: (String) -> Unit,
+    onDelete: () -> Unit,
 ) {
-    val c = LocalRedColors.current
+    val c = LocalMono.current
+    val m = LocalMetrics.current
+    val h = LocalHaptics.current
     val listState = rememberLazyListState()
-    var draft by rememberSaveable { mutableStateOf("") }
+    var draft by remember { mutableStateOf("") }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var seconds by remember { mutableStateOf(0) }
 
-    LaunchedEffect(messages.size, messages.lastOrNull()?.content?.length) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    val messages = conversation?.messages.orEmpty()
+    val stepCount = messages.sumOf { it.steps.size }
+
+    LaunchedEffect(streaming, conversation?.id) {
+        if (!streaming) {
+            seconds = 0
+            return@LaunchedEffect
+        }
+        val t0 = System.currentTimeMillis()
+        while (true) {
+            seconds = ((System.currentTimeMillis() - t0) / 1000L).toInt()
+            delay(1000)
+        }
     }
 
-    Column(Modifier.fillMaxSize().background(c.background).imePadding()) {
-        RedTopBar(
-            title = title,
-            subtitle = subtitle,
-            actions = {
-                IconButton(onClick = onTerminal) { Icon(Icons.Filled.Terminal, "Computer", tint = c.onSurfaceMuted) }
-                IconButton(onClick = onSearch) { Icon(Icons.Filled.Search, "Search operations", tint = c.onSurfaceMuted) }
-                IconButton(onClick = onNewChat) { Icon(Icons.Filled.Add, "New operation", tint = c.onSurfaceMuted) }
-                IconButton(onClick = onMore) { Icon(Icons.Filled.MoreVert, "More", tint = c.onSurfaceMuted) }
-            },
-        )
+    // Follow the run while it is being written, unless the operator scrolls away.
+    val followKey = messages.size to (messages.lastOrNull()?.content?.length ?: 0)
+    LaunchedEffect(followKey, streaming) {
+        if (messages.isNotEmpty() && (streaming || listState.firstVisibleItemIndex >= messages.lastIndex - 2)) {
+            listState.scrollToItem(messages.lastIndex)
+        }
+    }
+
+    Column(Modifier.fillMaxSize().imePadding()) {
+        ScreenHeader(
+            title = conversation?.title ?: "New operation",
+            eyebrow = "op · ${messages.size} msg · $stepCount steps · ${model.substringAfterLast('/')}",
+            onBack = onBack,
+            modifier = Modifier,
+        ) {
+            CircleIcon(
+                icon = Icons.Rounded.MoreHoriz,
+                onClick = { confirmDelete = true },
+                contentDescription = "Operation options",
+                dim = 38.dp,
+            )
+        }
+        Hairline()
+
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (messages.isEmpty()) {
-                EmptyState(model = model, onUsePrompt = onUsePrompt)
+                EmptyChat(onPick = { onSend(it); h.tap() })
             } else {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(start = m.gutter, end = m.gutter, top = 18.dp, bottom = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
-                    items(messages, key = { it.id }) { msg ->
-                        if (msg.role == "user") UserBubble(msg)
-                        else AssistantBlock(msg, streaming = streaming && msg.id == messages.lastOrNull()?.id, onOpenUrl = onOpenUrl, onRetry = onRetry)
+                    itemsIndexed(messages, key = { _, it -> it.id }) { index, msg ->
+                        MessageItem(
+                            message = msg,
+                            live = streaming && index == messages.lastIndex,
+                            onRetry = { onRetry(msg.id) },
+                            onOpenUrl = onOpenUrl,
+                        )
                     }
                 }
             }
-            // menu affordance: the drawer opens from the logo/hamburger on the left
-            IconButton(onClick = onMenu, modifier = Modifier.align(Alignment.TopStart).padding(4.dp)) {
-                Icon(Icons.Filled.Menu, "Operations", tint = Color.Transparent)
+        }
+
+        if (streaming) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = m.gutter).padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LiveLabel("running · ${seconds}s", color = c.ink)
+                Spacer(Modifier.weight(1f))
+                GhostButton("stop", onStop, color = c.ink)
             }
         }
+
         Composer(
-            value = draft,
-            onValueChange = { draft = it },
+            draft = draft,
+            onDraft = { draft = it },
             streaming = streaming,
-            onSend = { onSend(draft); draft = "" },
-            onStop = onStop,
             model = model,
+            onSend = {
+                if (draft.isNotBlank()) {
+                    h.tap()
+                    onSend(draft)
+                    draft = ""
+                }
+            },
+            onStop = onStop,
+        )
+    }
+
+    if (confirmDelete) {
+        ConfirmSheet(
+            title = "Delete operation",
+            body = "This transcript and its ${messages.size} message(s) leave the device.",
+            confirmLabel = "delete",
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false },
         )
     }
 }
 
+/* ── transcript ───────────────────────────────────────────── */
+
 @Composable
-private fun EmptyState(model: String, onUsePrompt: (String) -> Unit) {
-    val c = LocalRedColors.current
-    val prompts = listOf(
-        "Map the external attack surface of example.com and rank the exposures." to "Recon a domain",
-        "Explain CVE-2024-3094 (xz backdoor): mechanism, detection, blast radius." to "Dissect a CVE",
-        "Harden an Ubuntu 24.04 host running SSH and a public web app." to "Harden a host",
-        "Review this Android manifest for over-permissioning." to "Audit an app",
-    )
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 22.dp, vertical = 26.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        item {
-            RedMark(96.dp, Modifier.padding(bottom = 18.dp))
-            Text("Give RED a target.", style = MaterialTheme.typography.displaySmall, color = c.onBackground)
-            Text(
-                "A question, a domain, a machine, a task. RED reasons, searches, then executes on a real Linux computer — every step visible, every step yours to audit.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = c.onSurfaceMuted,
-                modifier = Modifier.padding(top = 10.dp, bottom = 22.dp),
-            )
+private fun MessageItem(message: Message, live: Boolean, onRetry: () -> Unit, onOpenUrl: (String) -> Unit) {
+    val c = LocalMono.current
+    if (message.role == "user") {
+        UserMessage(message)
+        return
+    }
+    Column(Modifier.fillMaxWidth()) {
+        MonoLabel("red · ${fmtTime(message.ts)}", color = c.faint, size = 9.sp)
+        Spacer(Modifier.height(10.dp))
+        if (message.steps.isNotEmpty()) {
+            StepsBlock(message.steps, active = live && message.content.isBlank())
+            Spacer(Modifier.height(12.dp))
         }
-        items(prompts) { (prompt, label) ->
+        if (message.content.isNotBlank()) {
+            MarkdownBody(message.content)
+        }
+        if (live) {
+            Spacer(Modifier.height(6.dp))
+            TextCursor(c.ink, tall = 15.dp)
+        }
+        message.error?.let { err ->
+            Spacer(Modifier.height(12.dp))
+            ErrorCard(err, onRetry)
+        }
+        if (message.cites.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            CitationRow(message.cites, onOpenUrl)
+        }
+    }
+}
+
+@Composable
+private fun UserMessage(message: Message) {
+    val c = LocalMono.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val maxW = maxWidth * 0.88f
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+            MonoLabel("you · ${fmtTime(message.ts)}", color = c.faint, size = 9.sp)
+            Spacer(Modifier.height(8.dp))
             Surface(
-                onClick = { onUsePrompt(prompt) },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = c.surface,
-                border = androidx.compose.foundation.BorderStroke(1.dp, c.stroke),
+                color = c.solid,
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.widthIn(max = maxW),
             ) {
-                Column(Modifier.padding(14.dp)) {
-                    Text(label, style = MaterialTheme.typography.titleMedium, color = c.onBackground)
-                    Text(prompt, style = MaterialTheme.typography.bodySmall, color = c.onSurfaceMuted, maxLines = 2)
+                Text(
+                    message.content,
+                    style = MonoType.body,
+                    color = c.inverseInk,
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ErrorCard(text: String, onRetry: () -> Unit) {
+    val c = LocalMono.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .border(1.dp, c.hairlineStrong, RoundedCornerShape(18.dp))
+            .padding(14.dp)
+    ) {
+        MonoLabel("err", color = c.ink, size = 9.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(text, style = MonoType.bodySm, color = c.muted)
+        Spacer(Modifier.height(6.dp))
+        GhostButton("retry", onRetry, color = c.ink)
+    }
+}
+
+@Composable
+private fun CitationRow(cites: List<Citation>, onOpenUrl: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        cites.take(8).forEach { cite ->
+            val host = cite.url.substringAfter("//").substringBefore("/").removePrefix("www.")
+            Chip(cite.title.ifBlank { host }.take(28), onClick = { onOpenUrl(cite.url) })
+        }
+    }
+}
+
+/* ── steps ────────────────────────────────────────────────── */
+
+@Composable
+private fun StepsBlock(steps: List<Step>, active: Boolean) {
+    val c = LocalMono.current
+    val h = LocalHaptics.current
+    var expanded by remember { mutableStateOf(active) }
+    LaunchedEffect(active) { if (active) expanded = true }
+
+    val failed = steps.count { it.status == "err" }
+    val total = steps.sumOf { it.ms }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { h.tick(); expanded = !expanded }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (active) {
+                DotSpinner(c.ink, 13.dp)
+                Spacer(Modifier.width(10.dp))
+            }
+            MonoLabel(
+                buildString {
+                    append(steps.size).append(" steps")
+                    if (failed > 0) append(" · ").append(failed).append(" failed")
+                    if (total > 0) append(" · ").append(fmtDuration(total))
+                },
+                color = if (active) c.ink else c.muted,
+                size = 9.sp,
+            )
+            Spacer(Modifier.weight(1f))
+            Chevron(expanded)
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(tween(220)) + fadeIn(tween(180)),
+            exit = shrinkVertically(tween(180)) + fadeOut(tween(120)),
+        ) {
+            Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp)) {
+                steps.forEach { step -> StepRow(step) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepRow(step: Step) {
+    val c = LocalMono.current
+    val h = LocalHaptics.current
+    var open by remember(step.id) { mutableStateOf(false) }
+    val hasDetail = step.detail.isNotBlank()
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .then(if (hasDetail) Modifier.clickable { h.tick(); open = !open } else Modifier)
+                .padding(vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(18.dp).fillMaxHeight()) {
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .fillMaxHeight()
+                        .width(1.dp)
+                        .background(c.hairline)
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .then(
+                            when {
+                                step.status == "err" -> Modifier.border(1.dp, c.ink, CircleShape)
+                                step.status == "run" -> Modifier.background(c.ink)
+                                else -> Modifier.background(c.muted)
+                            }
+                        )
+                )
+            }
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MonoLabel(
+                        step.title.replace('_', ' '),
+                        color = if (step.status == "err") c.ink else c.muted,
+                        size = 9.sp,
+                    )
+                    if (step.status == "err") {
+                        Spacer(Modifier.width(6.dp))
+                        MonoLabel("err", color = c.ink, size = 8.sp)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    MonoLabel(if (step.status == "run") "run" else fmtDuration(step.ms), color = c.faint, size = 8.sp)
+                }
+                if (step.arg.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        step.arg,
+                        style = MonoType.bodySm.copy(fontSize = 12.sp),
+                        color = c.faint,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
-        }
-        item {
-            Text(
-                "Model · $model",
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                color = c.onSurfaceMuted.copy(alpha = .7f),
-                modifier = Modifier.padding(top = 14.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun UserBubble(msg: Message) {
-    val c = LocalRedColors.current
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Column(
-            Modifier
-                .widthIn()
-                .clip(RoundedCornerShape(18.dp, 18.dp, 6.dp, 18.dp))
-                .background(c.surfaceAlt)
-                .border(1.dp, c.stroke, RoundedCornerShape(18.dp, 18.dp, 6.dp, 18.dp))
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-        ) {
-            Text(msg.content, style = MaterialTheme.typography.bodyLarge, color = c.onBackground)
-            Text(fmtTime(msg.ts), style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = c.onSurfaceMuted, modifier = Modifier.padding(top = 4.dp))
-        }
-    }
-}
-
-private fun Modifier.widthIn() = this.then(Modifier.fillMaxWidth(0.9f))
-
-@Composable
-private fun AssistantBlock(msg: Message, streaming: Boolean, onOpenUrl: (String) -> Unit, onRetry: (String) -> Unit) {
-    val c = LocalRedColors.current
-    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RedMark(22.dp)
-            Spacer(Modifier.width(8.dp))
-            Text("RED", style = MaterialTheme.typography.bodySmall, color = c.onBackground, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(8.dp))
-            Text(if (streaming) "working" else fmtTime(msg.ts), style = MaterialTheme.typography.bodySmall, color = c.onSurfaceMuted)
-        }
-        Spacer(Modifier.height(10.dp))
-        if (msg.steps.isNotEmpty()) RunCard(msg.steps, live = streaming)
-        if (msg.content.isNotBlank()) MarkdownText(msg.content, onOpenUrl)
-        if (streaming && msg.content.isBlank()) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                Dots()
-                Spacer(Modifier.width(8.dp))
-                Text("thinking", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceMuted)
+            if (hasDetail) {
+                Spacer(Modifier.width(6.dp))
+                Chevron(open)
             }
         }
-        if (msg.error != null) {
-            Spacer(Modifier.height(8.dp))
-            InlineError(msg.error!!, onRetry = { onRetry(msg.id) })
+        AnimatedVisibility(
+            visible = open,
+            enter = expandVertically(tween(200)) + fadeIn(tween(160)),
+            exit = shrinkVertically(tween(160)) + fadeOut(tween(100)),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 28.dp, bottom = 8.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(c.surface)
+                    .border(1.dp, c.hairline, RoundedCornerShape(14.dp))
+                    .padding(12.dp)
+            ) {
+                Text(
+                    step.detail,
+                    style = MonoType.monoData.copy(fontSize = 11.sp, lineHeight = 17.sp),
+                    color = c.muted,
+                    maxLines = 14,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
-        if (msg.cites.isNotEmpty()) CitationRow(msg.cites, onOpenUrl)
-    }
-}
-
-@Composable
-private fun Dots() {
-    val c = LocalRedColors.current
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        repeat(3) { Box(Modifier.size(4.dp).clip(CircleShape).background(c.onSurfaceMuted)) }
     }
 }
 
 /* ── markdown ─────────────────────────────────────────────── */
 
 @Composable
-fun MarkdownText(src: String, onOpenUrl: (String) -> Unit) {
-    val c = LocalRedColors.current
-    val blocks = remember(src) { parseMarkdown(src) }
-    Column(Modifier.fillMaxWidth()) {
+fun MarkdownBody(text: String) {
+    val c = LocalMono.current
+    val blocks = remember(text) { parseMarkdown(text) }
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         blocks.forEach { block ->
             when (block) {
                 is MdBlock.Heading -> Text(
-                    inline(block.text, c.accent, onOpenUrl),
+                    inline(block.text, c),
                     style = when (block.level) {
-                        1 -> MaterialTheme.typography.headlineSmall
-                        2 -> MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                        else -> MaterialTheme.typography.titleMedium
+                        1 -> MonoType.title.copy(fontSize = 20.sp)
+                        2 -> MonoType.heading
+                        else -> MonoType.heading.copy(fontSize = 15.sp)
                     },
-                    modifier = Modifier.padding(top = if (block.level == 1) 14.dp else 10.dp, bottom = 5.dp),
+                    color = c.ink,
                 )
-                is MdBlock.Paragraph -> Text(
-                    inline(block.text, c.accent, onOpenUrl),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (c.isDark) c.onBackground else c.onBackground,
-                    modifier = Modifier.padding(bottom = 9.dp),
-                )
-                is MdBlock.Bullet -> Row(Modifier.padding(bottom = 5.dp)) {
+                is MdBlock.Paragraph -> Text(inline(block.text, c), style = MonoType.body, color = c.ink)
+                is MdBlock.Bullet -> Row(Modifier.fillMaxWidth()) {
                     Text(
-                        if (block.ordered) "${block.index}." else "•",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = c.accent,
-                        modifier = Modifier.width(22.dp),
+                        if (block.ordered) "${block.index}." else "—",
+                        style = MonoType.mono.copy(fontSize = 11.sp),
+                        color = c.faint,
+                        modifier = Modifier.width(22.dp).padding(top = 3.dp),
                     )
-                    Text(inline(block.text, c.accent, onOpenUrl), style = MaterialTheme.typography.bodyLarge)
+                    Text(inline(block.text, c), style = MonoType.body, color = c.ink, modifier = Modifier.weight(1f))
                 }
-                is MdBlock.Quote -> Row(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        .clip(RoundedCornerShape(10.dp)).background(c.surface)
-                        .padding(10.dp)
-                ) {
-                    Box(Modifier.width(2.dp).height(18.dp).background(c.accent.copy(alpha = .6f)))
-                    Spacer(Modifier.width(10.dp))
-                    Text(inline(block.text, c.accent, onOpenUrl), style = MaterialTheme.typography.bodyMedium, color = c.onSurfaceMuted)
+                is MdBlock.Quote -> Row(Modifier.height(IntrinsicSize.Min)) {
+                    Box(Modifier.width(2.dp).fillMaxHeight().background(c.hairlineStrong))
+                    Spacer(Modifier.width(12.dp))
+                    Text(inline(block.text, c), style = MonoType.body.copy(fontStyle = FontStyle.Italic), color = c.muted)
                 }
-                is MdBlock.Code -> Column(
-                    Modifier.fillMaxWidth().padding(bottom = 10.dp)
-                        .clip(RoundedCornerShape(14.dp)).background(if (c.isDark) Color(0xFF0C0C0F) else Color(0xFFEFEEEC))
-                        .border(1.dp, c.stroke, RoundedCornerShape(14.dp))
+                is MdBlock.Code -> Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(c.surface)
+                        .border(1.dp, c.hairline, RoundedCornerShape(14.dp))
+                        .horizontalScroll(rememberScrollState())
+                        .padding(12.dp)
                 ) {
-                    if (block.lang.isNotBlank()) Text(
-                        block.lang.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = c.onSurfaceMuted,
-                        modifier = Modifier.padding(start = 12.dp, top = 9.dp),
-                    )
                     Text(
                         block.body,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp),
-                        color = if (c.isDark) Color(0xFFD8D8DE) else Color(0xFF191919),
-                        modifier = Modifier.padding(12.dp).horizontalScrollable(),
-                        softWrap = false,
+                        style = MonoType.monoData.copy(fontSize = 11.sp, lineHeight = 17.sp),
+                        color = c.ink,
                     )
                 }
-                is MdBlock.Table -> TableBlock(block, onOpenUrl)
-                is MdBlock.Rule -> Spacer(Modifier.height(1.dp).fillMaxWidth().background(c.stroke).padding(vertical = 8.dp))
+                is MdBlock.Table -> Column(Modifier.fillMaxWidth()) {
+                    Hairline()
+                    TableRow(block.head, header = true)
+                    Hairline()
+                    block.rows.forEach { row ->
+                        TableRow(row, header = false)
+                        Hairline()
+                    }
+                }
+                is MdBlock.Rule -> Hairline(Modifier.padding(vertical = 4.dp))
             }
         }
     }
 }
 
 @Composable
-private fun Modifier.horizontalScrollable(): Modifier =
-    this.horizontalScroll(rememberScrollState())
-
-@Composable
-private fun TableBlock(table: MdBlock.Table, onOpenUrl: (String) -> Unit) {
-    val c = LocalRedColors.current
-    Column(
-        Modifier.fillMaxWidth().padding(bottom = 10.dp)
-            .clip(RoundedCornerShape(14.dp)).border(1.dp, c.stroke, RoundedCornerShape(14.dp))
-    ) {
-        Row(Modifier.background(c.surface).padding(horizontal = 11.dp, vertical = 9.dp)) {
-            table.head.forEach { cell ->
-                Text(cell.uppercase(), style = MaterialTheme.typography.labelSmall, color = c.onSurfaceMuted, modifier = Modifier.weight(1f))
-            }
-        }
-        table.rows.forEach { row ->
-            Row(Modifier.padding(horizontal = 11.dp, vertical = 9.dp)) {
-                row.forEachIndexed { i, cell ->
-                    Text(
-                        inline(cell, c.accent, onOpenUrl),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (i == 0) c.onBackground else c.onSurfaceMuted,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
+private fun TableRow(cells: List<String>, header: Boolean) {
+    val c = LocalMono.current
+    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        cells.forEach { cell ->
+            Text(
+                cell,
+                style = if (header) MonoType.mono.copy(fontSize = 9.sp) else MonoType.bodySm.copy(fontSize = 12.sp),
+                color = if (header) c.faint else c.ink,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
 
 @Composable
-private fun inline(src: String, accent: Color, onOpenUrl: (String) -> Unit): AnnotatedString {
-    val spans = remember(src) { parseInline(src) }
-    val c = LocalRedColors.current
-    return buildAnnotatedString {
-        spans.forEach { span ->
-            when (span) {
-                is Inline.Plain -> append(span.text)
-                is Inline.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(span.text) }
-                is Inline.Italic -> withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(span.text) }
-                is Inline.Code -> withStyle(
-                    SpanStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.5.sp,
-                        background = c.surfaceAlt,
-                        color = accent,
-                    )
-                ) { append(span.text) }
-                is Inline.Link -> {
-                    pushStringAnnotation("url", span.url)
-                    withStyle(SpanStyle(color = accent, textDecoration = TextDecoration.Underline)) { append(span.text) }
-                    pop()
+private fun inline(text: String, c: MonoColors): AnnotatedString {
+    return remember(text, c) {
+        buildAnnotatedString {
+            parseInline(text).forEach { part ->
+                when (part) {
+                    is Inline.Plain -> append(part.text)
+                    is Inline.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(part.text) }
+                    is Inline.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(part.text) }
+                    is Inline.Code -> withStyle(
+                        SpanStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                            background = c.surfaceHi,
+                            color = c.ink,
+                        )
+                    ) { append(" ${part.text} ") }
+                    is Inline.Link -> withStyle(
+                        SpanStyle(textDecoration = TextDecoration.Underline, color = c.ink)
+                    ) { append(part.text) }
                 }
             }
         }
@@ -379,61 +553,135 @@ private fun inline(src: String, accent: Color, onOpenUrl: (String) -> Unit): Ann
 /* ── composer ─────────────────────────────────────────────── */
 
 @Composable
-private fun Composer(value: String, onValueChange: (String) -> Unit, streaming: Boolean, onSend: () -> Unit, onStop: () -> Unit, model: String) {
-    val c = LocalRedColors.current
-    Column(
-        Modifier.fillMaxWidth().background(c.background).padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Surface(shape = RoundedCornerShape(22.dp), color = c.surface, border = androidx.compose.foundation.BorderStroke(1.dp, c.stroke)) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Box(Modifier.heightIn(min = 26.dp, max = 150.dp)) {
-                    if (value.isEmpty()) Text("Ask RED, or give it a task…", style = MaterialTheme.typography.bodyLarge, color = c.onSurfaceMuted.copy(alpha = .8f))
+private fun Composer(
+    draft: String,
+    onDraft: (String) -> Unit,
+    streaming: Boolean,
+    model: String,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val c = LocalMono.current
+    val m = LocalMetrics.current
+    val ia = remember { MutableInteractionSource() }
+    val focused by ia.collectIsFocusedAsState()
+    val canSend = draft.isNotBlank() && !streaming
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = m.gutter).padding(bottom = 10.dp, top = 6.dp)) {
+        Surface(
+            color = c.surfaceHi,
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.dp, if (focused) c.hairlineStrong else c.hairline),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                Modifier.padding(8.dp).heightIn(min = 46.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Box(Modifier.weight(1f).padding(start = 10.dp, top = 11.dp, bottom = 11.dp)) {
+                    if (draft.isEmpty()) {
+                        Text("Describe an outcome…", style = MonoType.body, color = c.faint)
+                    }
                     BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        textStyle = LocalTextStyle.current.copy(color = c.onBackground, fontSize = 15.sp),
-                        cursorBrush = SolidColor(c.accent),
+                        value = draft,
+                        onValueChange = onDraft,
+                        textStyle = MonoType.body.copy(color = c.ink),
+                        cursorBrush = SolidColor(c.ink),
+                        maxLines = 6,
+                        interactionSource = ia,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-                    Text(
-                        model.substringAfterLast('/'),
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 10.5.sp),
-                        color = c.onSurfaceMuted,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    if (streaming) {
-                        Surface(onClick = onStop, shape = CircleShape, color = c.accent) {
-                            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Filled.Stop, "Stop", tint = Color.White, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    } else {
-                        Surface(
-                            onClick = { if (value.isNotBlank()) onSend() },
-                            shape = CircleShape,
-                            color = if (value.isNotBlank()) c.accent else c.surfaceAlt,
-                        ) {
-                            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Filled.ArrowUpward,
-                                    "Send",
-                                    tint = if (value.isNotBlank()) Color.White else c.onSurfaceMuted,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
+                Spacer(Modifier.width(8.dp))
+                Pressable(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(if (canSend || streaming) c.solid else c.surfaceMax),
+                    onClick = { if (streaming) onStop() else onSend() },
+                    enabled = canSend || streaming,
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        AnimatedContent(
+                            targetState = streaming,
+                            transitionSpec = {
+                                (fadeIn(tween(130)) + scaleIn(initialScale = 0.7f)) togetherWith
+                                    (fadeOut(tween(90)) + scaleOut(targetScale = 0.7f))
+                            },
+                            label = "sendstop",
+                        ) { live ->
+                            Icon(
+                                if (live) Icons.Rounded.Stop else Icons.Rounded.ArrowUpward,
+                                contentDescription = if (live) "Stop" else "Send",
+                                tint = if (canSend || streaming) c.inverseInk else c.faint,
+                                modifier = Modifier.size(20.dp),
+                            )
                         }
                     }
                 }
             }
         }
-        Text(
-            "BYOK · keys stay encrypted on this device",
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-            color = c.onSurfaceMuted.copy(alpha = .65f),
-            modifier = Modifier.padding(start = 6.dp, top = 6.dp),
-        )
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            MonoLabel(model.substringAfterLast('/'), color = c.faint, size = 8.sp)
+            Spacer(Modifier.weight(1f))
+            MonoLabel("steps are visible · nothing hidden", color = c.faint, size = 8.sp)
+        }
     }
 }
 
+@Composable
+private fun EmptyChat(onPick: (String) -> Unit) {
+    val c = LocalMono.current
+    val m = LocalMetrics.current
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = m.gutter),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        DotWord("RED", color = c.ink, modifier = Modifier.width(88.dp))
+        Spacer(Modifier.height(24.dp))
+        Text("What are we doing?", style = MonoType.title.copy(fontSize = 24.sp), color = c.ink)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "One sentence is enough. I will plan, act, and show every step.",
+            style = MonoType.bodySm,
+            color = c.muted,
+        )
+        Spacer(Modifier.height(26.dp))
+        val ideas = listOf(
+            "Scan this repo for risky dependencies",
+            "Research a supplier and summarise the risks",
+            "Write a shell script that backs up my notes",
+        )
+        ideas.forEachIndexed { i, idea ->
+            Stagger(i) {
+                Pressable(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, c.hairline, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                    onClick = { onPick(idea) },
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        MonoLabel("try", color = c.faint, size = 8.sp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            idea,
+                            style = MonoType.bodySm,
+                            color = c.ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* Kept for the terminal screen's shared model. */
+private val ignoredLocale = Locale.US

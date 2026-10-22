@@ -21,10 +21,12 @@ Store + vault  provider clients (OpenRouter / OpenAI / Gemini / Tavily / E2B / D
 - `SettingsScreen` — keys, model, persona, memory, theme, About (prompt hash).
 - `TerminalScreen` — live command feed, sandbox status, kill switch.
 - `Onboarding` — first-run key entry with per-key live validation and demo mode.
-- `OperationsDrawer` — list, create, delete operations.
-- `Components` — the design system: `PrimaryButton`, `QuietButton`, cards,
-  section headers, sheets, chips, the step card.
-- `theme/Theme.kt` — ink and paper palettes, type scale, shape scale.
+- `OperationsScreen` — the ledger: list, create, delete operations.
+- `Components` — the MONO design system: hairlines, pills, toggles, segmented
+  controls, elastic sliders, sheets, and the motion set (decrypt, count-up,
+  stagger, dot field, dot spinner, flip words, text cursor).
+- `theme/Theme.kt` — black/white tokens, type scale, and device-derived metrics
+  (gutter, display size, radii) resolved from screen width, height and font scale.
 
 **Rules.** No screen performs I/O. No screen owns mutable business state. Screens
 receive `UiState` and emit intents. This is what keeps the recomposition count low

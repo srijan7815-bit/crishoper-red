@@ -24,6 +24,41 @@ versions follow [Semantic Versioning](https://semver.org/).
   signed and verified; it is simply larger than a minified build. `ci/workflows/`
   builds the minified variant on a normal runner.
 
+## [4.0.0] — 2026-10-22
+
+### Changed — the interface is a different app
+- **MONO design language.** Strict black and white: the accent is now inversion
+  (white slab, black type) rather than a colour. Structure comes from hairlines
+  and space; there is not a single drop shadow in the app.
+- **New navigation.** The drawer is replaced by a floating pill dock —
+  Operations · Console · Settings — that reports the active destination.
+- **Operations screen** is a flat ledger: index, title, a mono metadata line and
+  one status dot. Live runs are the only rows that carry a pulsing dot.
+- **Operation screen** rebuilt around an asymmetric transcript: your message is
+  an inverted slab, the agent's answer is bare type on the canvas, and its tool
+  calls are a spine of dots that expand into output.
+- **Settings** rebuilt as one scrollable document with sheet-based editing, so
+  the list never competes with the keyboard for focus.
+- **Console** is now monospaced, line-numbered and honest about failures.
+- **Onboarding** rewritten as three editorial steps with a large watermark
+  numeral and per-key testing.
+
+### Added
+- Motion set ported from reactbits ideas into Compose primitives, with none of
+  their per-frame cost: `DecryptText`, `CountUp`, `AnimatedList` stagger,
+  `DotField`, `DotSpinner`, `FlipWords`, `ElasticSlider`, `TextCursor`, `Dock`.
+- Device-adaptive metrics: gutter, display size and radii derive from the actual
+  screen width, height and font scale.
+- Haptic ticks bound to the operator's Haptics setting, fired on touches only.
+
+### Fixed
+- Every screen scrolls to its true end; nothing is clipped behind the dock.
+- Destructive actions go through a confirmation sheet, never a single tap.
+
+### Unchanged
+- Agent engine, tools, vault, prompt (`9f4d814a…`) and storage format. 4.0.0 is
+  a UI release; the machine underneath is 3.0.0.
+
 ## [Unreleased]
 
 ### Planned

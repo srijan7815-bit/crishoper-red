@@ -74,17 +74,19 @@ The UI is Jetpack Compose; the networking is OkHttp; state is a serialized
 snapshot; secrets are in the Android Keystore. This keeps the app small, the
 frames cheap, and the attack surface honest.
 
-**Smoothness over decoration.** Motion is limited to short fades and drawer
-transitions. There are no shaders, no 3D objects, no ambient particle fields. A
-screen that stutters is a bug.
+**Smoothness over decoration.** Motion is short fades, spring-loaded press
+feedback and numbers that count to their new value. There are no shaders, no 3D
+objects, no ambient particle fields and no shadows. A screen that stutters is a
+bug.
 
 **Adaptive layout.** Screen class, width in dp, font scale and aspect ratio are
 read from the device and used to pick gutters, type sizes and column counts, so
 the same build reads correctly on a 5" phone, a foldable and a tablet.
 
-**Two palettes.** A graphite *ink* theme (near-black surfaces, `#FF3441` accent)
-and a warm *paper* theme (`#F5F4F2` with `#E01124`). Both are contrast-checked;
-the app follows the system light/dark setting unless overridden in Settings.
+**MONO: strictly black and white.** No accent hue — importance is expressed by
+inversion, so a solid white slab with black type is the loudest thing on screen.
+A paper theme flips the same system to white-on-black rather than introducing a
+second palette.
 
 **Reversible actions.** Destructive operations (delete operation, wipe memory,
 forget a key, kill a sandbox) always ask first. Nothing is deleted on a single tap.
@@ -132,7 +134,7 @@ Download the latest signed APK from
 [Releases](https://github.com/srijan7815-bit/crishoper-red/releases), then:
 
 ```bash
-adb install -r crishoper-red-3.0.0.apk
+adb install -r crishoper-red-4.0.0.apk
 ```
 
 Requirements: Android 8.0 (API 26) or newer, arm64 or x86_64.
@@ -141,7 +143,7 @@ Requirements: Android 8.0 (API 26) or newer, arm64 or x86_64.
 > from an untrusted mirror:
 >
 > ```bash
-> apksigner verify --print-certs crishoper-red-3.0.0.apk
+> apksigner verify --print-certs crishoper-red-4.0.0.apk
 > ```
 
 ## 6. Build from source
@@ -227,7 +229,7 @@ with the project key — its certificate fingerprint is published with each rele
 and can be re-checked locally:
 
 ```bash
-apksigner verify --print-certs crishoper-red-3.0.0.apk
+apksigner verify --print-certs crishoper-red-4.0.0.apk
 sha256sum -c checksums.txt
 ```
 

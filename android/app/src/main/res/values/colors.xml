@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="red_bg">#070708</color>
-    <color name="red_surface">#101013</color>
-    <color name="red_accent">#FF3441</color>
+    <!-- MONO edition: black, white, and nothing else. The accent is inversion. -->
+    <color name="red_bg">#000000</color>
+    <color name="red_surface">#0B0B0C</color>
+    <color name="red_accent">#FFFFFF</color>
     <color name="white">#FFFFFF</color>
 </resources>
