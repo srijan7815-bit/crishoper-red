@@ -1,13 +1,13 @@
 [versions]
 agp = "8.5.2"
-kotlin = "1.9.24"
+kotlin = "2.4.21"
 composeCompiler = "1.5.14"
 composeBom = "2024.06.00"
 coreKtx = "1.13.1"
 lifecycle = "2.8.3"
 activityCompose = "1.9.0"
 okhttp = "4.12.0"
-serialization = "1.6.3"
+serialization = "1.11.0"
 splashscreen = "1.0.1"
 junit = "4.13.2"
 
